@@ -451,4 +451,119 @@ mod tests {
             "uncompressed v3 NBT drifted from the committed golden fixture"
         );
     }
+
+    // --- spec conformance -------------------------------------------------
+    // These parse the output as a *generic* NBT tree (not our typed structs),
+    // then assert the invariants the Sponge spec documents. This catches
+    // wrong field names/types/structure independently of the serializer.
+
+    use fastnbt::Value;
+    use std::collections::HashMap;
+
+    fn as_compound(v: &Value) -> &HashMap<String, Value> {
+        match v {
+            Value::Compound(m) => m,
+            other => panic!("expected Compound, got {other:?}"),
+        }
+    }
+
+    fn require<'a>(m: &'a HashMap<String, Value>, key: &str) -> &'a Value {
+        m.get(key)
+            .unwrap_or_else(|| panic!("missing required field {key:?}"))
+    }
+
+    fn as_int(v: &Value) -> i32 {
+        match v {
+            Value::Int(i) => *i,
+            other => panic!("expected Int, got {other:?}"),
+        }
+    }
+
+    fn as_short(v: &Value) -> i16 {
+        match v {
+            Value::Short(s) => *s,
+            other => panic!("expected Short, got {other:?}"),
+        }
+    }
+
+    fn as_byte_array(v: &Value) -> &ByteArray {
+        match v {
+            Value::ByteArray(b) => b,
+            other => panic!("expected ByteArray, got {other:?}"),
+        }
+    }
+
+    /// Assert the spec's "block container" invariants for a Palette + block-data
+    /// pair (v2's root fields, or v3's `Blocks` compound).
+    fn assert_block_container(palette: &Value, data: &Value, w: i16, h: i16, l: i16) {
+        // Palette: each value is an Int, and the indices are contiguous 0..N.
+        let palette = as_compound(palette);
+        let mut indices: Vec<i32> = palette.values().map(as_int).collect();
+        indices.sort_unstable();
+        let n = indices.len() as i32;
+        assert_eq!(
+            indices,
+            (0..n).collect::<Vec<_>>(),
+            "palette indices must be contiguous 0..N"
+        );
+
+        // Block data: a varint byte array; one entry per cell; every index valid.
+        let raw: Vec<u8> = as_byte_array(data).iter().map(|&b| b as u8).collect();
+        let decoded = varint::read_all_unsigned(&raw).expect("block data must be valid varints");
+        let volume = w as u16 as usize * h as u16 as usize * l as u16 as usize;
+        assert_eq!(
+            decoded.len(),
+            volume,
+            "block count must equal Width*Height*Length"
+        );
+        assert!(
+            decoded.iter().all(|&i| (i as i32) < n),
+            "every block index must be < palette size"
+        );
+    }
+
+    #[test]
+    fn v2_conforms_to_spec() {
+        let nbt = to_nbt_v2(&oak_column(), &opts()).unwrap();
+        let root = fastnbt::from_bytes::<Value>(&nbt).unwrap();
+        let m = as_compound(&root);
+
+        assert_eq!(as_int(require(m, "Version")), 2);
+        as_int(require(m, "DataVersion")); // present and an Int
+        let (w, h, l) = (
+            as_short(require(m, "Width")),
+            as_short(require(m, "Height")),
+            as_short(require(m, "Length")),
+        );
+        assert_eq!(
+            as_int(require(m, "PaletteMax")),
+            as_compound(require(m, "Palette")).len() as i32,
+            "PaletteMax must equal the palette entry count"
+        );
+        assert_block_container(require(m, "Palette"), require(m, "BlockData"), w, h, l);
+        assert!(matches!(require(m, "BlockEntities"), Value::List(_)));
+    }
+
+    #[test]
+    fn v3_conforms_to_spec() {
+        let nbt = to_nbt_v3(&oak_column(), &opts()).unwrap();
+        let root = fastnbt::from_bytes::<Value>(&nbt).unwrap();
+        let schematic = as_compound(require(as_compound(&root), "Schematic"));
+
+        assert_eq!(as_int(require(schematic, "Version")), 3);
+        as_int(require(schematic, "DataVersion"));
+        let (w, h, l) = (
+            as_short(require(schematic, "Width")),
+            as_short(require(schematic, "Height")),
+            as_short(require(schematic, "Length")),
+        );
+        assert!(
+            !schematic.contains_key("PaletteMax"),
+            "v3 must not carry the v2-only PaletteMax field"
+        );
+
+        let blocks = as_compound(require(schematic, "Blocks"));
+        assert_block_container(require(blocks, "Palette"), require(blocks, "Data"), w, h, l);
+        assert!(matches!(require(blocks, "BlockEntities"), Value::List(_)));
+    }
 }

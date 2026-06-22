@@ -107,7 +107,10 @@ WASM. CLI and web app are thin I/O shells.
 - **M1 — Voxel model + `.schem` v2/v3 writer.** `VoxelModel`, LEB128 varint,
   `fastnbt`+`flate2` serializer for **both Sponge v2 and v3**; golden
   byte-fixtures + re-parse round-trips; CLI `emit-test-schem --schem-version`.
-  _(done — 21 tests; goldens hand-verified against the spec; both versions
+  _(done — 23 tests incl. spec-conformance checks that parse the output as a
+  generic NBT tree and assert the documented invariants (required tags + types,
+  contiguous palette indices, block-count = W·H·L, valid indices, v2/v3
+  structure); goldens hand-verified against the spec; both versions
   render in real viewers (WebSchematics, schemat.io). Always emits an empty
   `BlockEntities` list — spec-optional, but strict readers like schemat.io
   reject files without it. v3 field names confirmed from the official
