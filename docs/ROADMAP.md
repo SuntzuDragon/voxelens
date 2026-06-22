@@ -103,10 +103,11 @@ WASM. CLI and web app are thin I/O shells.
 ## Milestones (each: tests first, then code)
 
 - **M0 — Scaffold.** Workspace, git, toolchain/fmt/clippy config, CI, repo
-  layout, fixture + manifest, README, this roadmap. _(in progress)_
+  layout, fixture + manifest, README, this roadmap. _(done)_
 - **M1 — Voxel model + `.schem` v2 writer.** `VoxelModel`, LEB128 varint,
   `fastnbt`+`flate2` serializer; golden byte-fixture + re-parse round-trip; CLI
-  emits a `.schem` loadable in WorldEdit.
+  emits a `.schem` loadable in WorldEdit. _(done — 16 tests; golden NBT
+  hand-verified against the spec; `voxelens emit-test-schem` writes the column.)_
 - **M2 — Camera / projection** (`nalgebra`). `world_to_pixel`, `pixel_to_ray`,
   ground/grid-plane intersection; constants verified against decompiled jar;
   tests assert exact pixels from the fixture pose.
