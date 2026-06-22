@@ -1,0 +1,40 @@
+# Test-fixture capture metadata.
+#
+# Each fixture records the exact conditions it was captured under, so geometry
+# and classifier tests can assert against known ground truth instead of guesses.
+
+[[fixture]]
+file = "wool_tree_superflat_fov70_2560x1439.png"
+description = """
+Oak-log trunk topped by a small solid green-wool canopy on a superflat grass
+world. GUI (F1) and hand hidden; default brightness. Clean MVP target: every
+block is an opaque cube with crisp, fully-measurable faces."""
+
+# --- Capture environment ---
+source_instance = "PrismLauncher 'Latest' (C:/Users/imcb0/AppData/Roaming/PrismLauncher/instances/Latest)"
+mc_version_reported = "26.2"   # from mmc-pack.json; exact rendering jar TBD.
+                               # Nearest local official jar is 1.21.10 — DataVersion must be read
+                               # from the real rendering jar's version.json, never hardcoded.
+width = 2560
+height = 1439                  # note: 1439, not 1440 — use the true pixel dims in the camera
+fov_vertical_deg = 70.0        # options.txt `fov:0.0` => 70 deg (range 30..110)
+gamma = 0.5
+
+# --- Camera pose ---
+# Captured while FLYING, so there is no gravity settling: the camera is at
+# exactly the teleport coordinates. Pending: final F3 confirmation of no drift
+# and not-sneaking (sneaking would change eye height).
+[fixture.camera]
+feet = [6.0, -56.0, 3.0]       # player position from: tp @s 6.0 -56.0 3.0 129.0 14.0
+eye = [6.0, -54.38, 3.0]       # feet + (0, 1.62, 0); verify eye-height constant in source (M2)
+eye_height = 1.62
+yaw_deg = 129.0
+pitch_deg = 14.0
+
+# --- World ground truth (for M6 reconstruction tests) ---
+# Self-consistency check: the look vector for yaw 129/pitch 14 is ~(-0.78,-0.63)
+# in (x,z); the direction from camera (6,3) to the trunk base (-2,-4) is
+# ~(-0.75,-0.66) — i.e. the camera is aimed at the tree. Good.
+[fixture.world]
+grass_surface_y = -60          # top face of the grass the tree stands on
+trunk_base_block = [-2, -60, -4]   # block coords of the bottom oak-log

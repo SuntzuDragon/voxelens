@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/cli"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.93"
+
+[workspace.dependencies]
+voxelens-core = { path = "crates/core" }
+
+# Keep release builds fast and small for the eventual WASM target.
+[profile.release]
+opt-level = 3
+lto = "thin"
