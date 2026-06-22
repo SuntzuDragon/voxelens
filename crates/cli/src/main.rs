@@ -1,8 +1,66 @@
 //! voxelens CLI — thin I/O shell around `voxelens-core`.
 //!
-//! Subcommands are added milestone by milestone. For now this is a scaffold
-//! placeholder so the binary builds and CI has something to run.
+//! Subcommands are added milestone by milestone. The pipeline logic lives in the
+//! core crate; this binary only does argument parsing and file I/O.
 
-fn main() {
-    println!("voxelens — Minecraft screenshot \u{2192} schematic (scaffold)");
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
+use voxelens_core::schematic::{to_schem_v2, SchematicOptions};
+use voxelens_core::VoxelModel;
+
+#[derive(Parser)]
+#[command(
+    name = "voxelens",
+    about = "Reconstruct Minecraft schematics from screenshots",
+    version
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Emit a 1×2×1 oak-log column as a `.schem` (M1 end-to-end check).
+    ///
+    /// Load it in-game with WorldEdit: `//schem load <name>` then `//paste`.
+    EmitTestSchem {
+        /// Output path for the gzipped `.schem`.
+        #[arg(long, default_value = "out/oak_column.schem")]
+        out: PathBuf,
+        /// Minecraft world DataVersion. Should match your target version.
+        #[arg(long, default_value_t = 3700)]
+        data_version: i32,
+    },
+}
+
+fn main() -> Result<()> {
+    match Cli::parse().command {
+        Command::EmitTestSchem { out, data_version } => emit_test_schem(&out, data_version),
+    }
+}
+
+fn emit_test_schem(out: &Path, data_version: i32) -> Result<()> {
+    let mut model = VoxelModel::new(1, 2, 1)?;
+    model.set(0, 0, 0, "minecraft:oak_log[axis=y]");
+    model.set(0, 1, 0, "minecraft:oak_log[axis=y]");
+
+    let opts = SchematicOptions {
+        data_version,
+        offset: None,
+        name: None,
+    };
+    let bytes = to_schem_v2(&model, &opts)?;
+
+    if let Some(parent) = out.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating directory {}", parent.display()))?;
+        }
+    }
+    std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
+    println!("wrote {} bytes -> {}", bytes.len(), out.display());
+    Ok(())
 }

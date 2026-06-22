@@ -6,18 +6,10 @@
 //! identical under `cargo test`, the native CLI, and (later) WebAssembly. The
 //! CLI and web front-end are thin I/O shells around this crate.
 //!
-//! Modules are added milestone by milestone (see `docs/ROADMAP.md`):
-//! `schematic` (M1), `camera` (M2), `image` (M3), `faces` (M4),
-//! `texture` (M5), `reconstruct` (M6).
+//! Modules are added milestone by milestone (see `docs/ROADMAP.md`).
 
 #![forbid(unsafe_code)]
 
-#[cfg(test)]
-mod tests {
-    /// Smoke test proving the workspace compiles and the test harness runs.
-    /// Replaced by real coverage starting in M1.
-    #[test]
-    fn workspace_builds() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub mod schematic;
+
+pub use schematic::{SchematicOptions, VoxelModel};
