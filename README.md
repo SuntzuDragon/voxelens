@@ -31,6 +31,18 @@ cargo fmt --all       # format
 cargo clippy --all-targets --all-features -- -D warnings   # lint (CI-enforced)
 ```
 
+### Git hooks
+
+A committed pre-commit hook (`.githooks/pre-commit`) runs the same gates as CI
+— `fmt --check`, `clippy -D warnings`, and `cargo test` — and is skipped for
+commits that touch no Rust/build files. Enable it once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+Bypass in an emergency with `git commit --no-verify`.
+
 ## License
 
 MIT OR Apache-2.0. Mojang textures are **not** redistributed; they are loaded
