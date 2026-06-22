@@ -11,7 +11,7 @@ world. GUI (F1) and hand hidden; default brightness. Clean MVP target: every
 block is an opaque cube with crisp, fully-measurable faces."""
 
 # --- Capture environment ---
-source_instance = "PrismLauncher 'Latest' (C:/Users/imcb0/AppData/Roaming/PrismLauncher/instances/Latest)"
+source_instance = "PrismLauncher instance (Minecraft 26.2)"
 mc_version_reported = "26.2"   # from mmc-pack.json; exact rendering jar TBD.
                                # Nearest local official jar is 1.21.10 — DataVersion must be read
                                # from the real rendering jar's version.json, never hardcoded.
