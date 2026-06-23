@@ -132,6 +132,35 @@ enum Command {
         #[arg(long, default_value_t = 12.0)]
         max_err: f32,
     },
+
+    /// Reconstruct the determinable (ground-anchored) trunk to a `.schem` (M6).
+    /// Camera pose defaults to the wool-tree fixture.
+    Reconstruct {
+        input: PathBuf,
+        #[arg(long, default_value = "out/reconstruction.schem")]
+        out: PathBuf,
+        #[arg(long, default_value_t = 70.0)]
+        fov: f64,
+        #[arg(long, default_value_t = 129.0)]
+        yaw: f64,
+        #[arg(long, default_value_t = 14.0)]
+        pitch: f64,
+        #[arg(long, default_value_t = 6.0)]
+        eye_x: f64,
+        #[arg(long, default_value_t = -54.38)]
+        eye_y: f64,
+        #[arg(long, default_value_t = 3.0)]
+        eye_z: f64,
+        #[arg(long, default_value_t = -60)]
+        ground_y: i32,
+        #[arg(long, default_value_t = 32)]
+        max_height: u16,
+        /// Minecraft DataVersion (4556 = 1.21.10).
+        #[arg(long, default_value_t = 4556)]
+        data_version: i32,
+        #[arg(long, default_value_t = 3)]
+        schem_version: u8,
+    },
 }
 
 fn main() -> Result<()> {
@@ -203,7 +232,90 @@ fn main() -> Result<()> {
             eye: [eye_x, eye_y, eye_z],
             max_err,
         }),
+        Command::Reconstruct {
+            input,
+            out,
+            fov,
+            yaw,
+            pitch,
+            eye_x,
+            eye_y,
+            eye_z,
+            ground_y,
+            max_height,
+            data_version,
+            schem_version,
+        } => reconstruct_image(ReconstructArgs {
+            input: &input,
+            out: &out,
+            fov,
+            yaw,
+            pitch,
+            eye: [eye_x, eye_y, eye_z],
+            ground_y,
+            max_height,
+            data_version,
+            schem_version,
+        }),
     }
+}
+
+struct ReconstructArgs<'a> {
+    input: &'a Path,
+    out: &'a Path,
+    fov: f64,
+    yaw: f64,
+    pitch: f64,
+    eye: [f64; 3],
+    ground_y: i32,
+    max_height: u16,
+    data_version: i32,
+    schem_version: u8,
+}
+
+fn reconstruct_image(args: ReconstructArgs) -> Result<()> {
+    let decoded = image::open(args.input)
+        .with_context(|| format!("decoding {}", args.input.display()))?
+        .to_rgb8();
+    let (w, h) = decoded.dimensions();
+    let rgb = voxelens_core::RgbImage::from_rgb(w, h, decoded.into_raw());
+    let seg = voxelens_core::segment(&rgb);
+    let cam = voxelens_core::Camera::new(
+        args.fov,
+        w,
+        h,
+        Point3::new(args.eye[0], args.eye[1], args.eye[2]),
+        args.yaw,
+        args.pitch,
+    );
+
+    let recon =
+        voxelens_core::reconstruct::reconstruct_trunk(&seg, &cam, args.ground_y, args.max_height)
+            .ok_or_else(|| anyhow::anyhow!("no trunk (wood) detected in the image"))?;
+
+    let version = match args.schem_version {
+        2 => SchematicVersion::V2,
+        3 => SchematicVersion::V3,
+        other => bail!("unsupported schematic version {other} (expected 2 or 3)"),
+    };
+    let opts = SchematicOptions {
+        data_version: args.data_version,
+        offset: Some(recon.offset),
+        name: Some("voxelens trunk".to_string()),
+    };
+    let bytes = to_schem(version, &recon.model, &opts)?;
+    ensure_parent(args.out)?;
+    std::fs::write(args.out, &bytes).with_context(|| format!("writing {}", args.out.display()))?;
+    println!(
+        "trunk {}x{}x{} at world {:?} -> {} ({} bytes)",
+        recon.model.width(),
+        recon.model.height(),
+        recon.model.length(),
+        recon.offset,
+        args.out.display(),
+        bytes.len()
+    );
+    Ok(())
 }
 
 struct AxesArgs<'a> {
