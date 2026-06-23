@@ -12,3 +12,6 @@
 # OS / editor noise
 .DS_Store
 *.swp
+
+# wasm-pack output
+/crates/wasm/pkg
