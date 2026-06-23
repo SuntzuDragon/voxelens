@@ -18,6 +18,7 @@ pub mod lines;
 pub mod reconstruct;
 pub mod schematic;
 pub mod segmentation;
+pub mod texture;
 
 pub use camera::{Camera, Ray};
 pub use edges::{canny, Edges};
@@ -27,3 +28,4 @@ pub use lines::{cluster_orientations, extract_segments, hough_lines, Line, LineS
 pub use reconstruct::{reconstruct_trunk, Reconstruction};
 pub use schematic::{SchematicOptions, VoxelModel};
 pub use segmentation::{segment, Class, Segmentation};
+pub use texture::{classify, Match, Tile};
