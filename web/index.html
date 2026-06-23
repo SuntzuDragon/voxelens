@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>voxelens — screenshot → schematic</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
+      h1 { font-size: 1.2rem; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+      canvas { max-width: 48%; border: 1px solid #333; vertical-align: top; background: #000; }
+      input[type="number"] { width: 5.5em; background: #222; color: #eee; border: 1px solid #444; }
+      button { padding: 6px 12px; cursor: pointer; }
+      a { color: #6cf; }
+      #status { color: #9c9; }
+      label { font-size: 0.85rem; color: #aaa; }
+    </style>
+  </head>
+  <body>
+    <h1>voxelens — reconstruct a Minecraft schematic from a screenshot</h1>
+    <div class="row">
+      <input type="file" id="file" accept="image/png,image/jpeg" />
+      <button id="segBtn">Segment</button>
+      <button id="reconBtn">Reconstruct → .schem</button>
+      <span id="status">loading wasm…</span>
+    </div>
+    <div class="row">
+      <label>FOV <input type="number" id="fov" value="70" step="1" /></label>
+      <label>yaw <input type="number" id="yaw" value="129" step="0.1" /></label>
+      <label>pitch <input type="number" id="pitch" value="14" step="0.1" /></label>
+      <label>eye <input type="number" id="ex" value="6" step="0.1" /></label>
+      <input type="number" id="ey" value="-54.38" step="0.01" />
+      <input type="number" id="ez" value="3" step="0.1" />
+      <label>groundY <input type="number" id="gy" value="-60" step="1" /></label>
+    </div>
+    <div>
+      <canvas id="src"></canvas>
+      <canvas id="out"></canvas>
+    </div>
+    <div id="dl" class="row"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
