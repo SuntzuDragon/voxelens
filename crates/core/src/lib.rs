@@ -11,11 +11,13 @@
 #![forbid(unsafe_code)]
 
 pub mod camera;
+pub mod edges;
 pub mod image;
 pub mod schematic;
 pub mod segmentation;
 
 pub use camera::{Camera, Ray};
-pub use image::RgbImage;
+pub use edges::{canny, Edges};
+pub use image::{GrayImage, RgbImage};
 pub use schematic::{SchematicOptions, VoxelModel};
 pub use segmentation::{segment, Class, Segmentation};

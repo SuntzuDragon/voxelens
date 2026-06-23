@@ -44,6 +44,58 @@ impl RgbImage {
         let i = 3 * (y as usize * self.width as usize + x as usize);
         [self.data[i], self.data[i + 1], self.data[i + 2]]
     }
+
+    /// Convert to grayscale luminance (Rec. 601 weights), values in `0..=255`.
+    pub fn to_grayscale(&self) -> GrayImage {
+        let data = self
+            .data
+            .chunks_exact(3)
+            .map(|p| 0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32)
+            .collect();
+        GrayImage::from_data(self.width, self.height, data)
+    }
+}
+
+/// A single-channel floating-point image (luminance `0..=255`), row-major.
+#[derive(Debug, Clone)]
+pub struct GrayImage {
+    width: u32,
+    height: u32,
+    data: Vec<f32>,
+}
+
+impl GrayImage {
+    /// Wrap raw luminance values. Panics if `data.len() != width * height`.
+    pub fn from_data(width: u32, height: u32, data: Vec<f32>) -> Self {
+        assert_eq!(
+            data.len(),
+            width as usize * height as usize,
+            "gray buffer length must be width*height"
+        );
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn data(&self) -> &[f32] {
+        &self.data
+    }
+
+    /// Luminance at `(x, y)`. Panics if out of bounds.
+    #[inline]
+    pub fn at(&self, x: u32, y: u32) -> f32 {
+        self.data[y as usize * self.width as usize + x as usize]
+    }
 }
 
 /// Convert an 8-bit RGB triple to HSV: hue in degrees `[0, 360)`, saturation and
@@ -97,5 +149,14 @@ mod tests {
         assert!((rgb_to_hsv([0, 0, 255]).0 - 240.0).abs() < 0.1);
         // gray -> zero saturation
         assert!(rgb_to_hsv([128, 128, 128]).1.abs() < 1e-6);
+    }
+
+    #[test]
+    fn grayscale_uses_luma_weights() {
+        let img = RgbImage::from_rgb(3, 1, vec![255, 0, 0, 0, 255, 0, 0, 0, 255]);
+        let g = img.to_grayscale();
+        assert!((g.at(0, 0) - 0.299 * 255.0).abs() < 0.5); // red
+        assert!((g.at(1, 0) - 0.587 * 255.0).abs() < 0.5); // green
+        assert!((g.at(2, 0) - 0.114 * 255.0).abs() < 0.5); // blue
     }
 }

@@ -49,6 +49,24 @@ enum Command {
         #[arg(long, default_value = "out/segmentation.png")]
         out: PathBuf,
     },
+
+    /// Detect edges (Canny) and write a binary edge map (M4 stage dump).
+    Edges {
+        /// Input screenshot (PNG).
+        input: PathBuf,
+        /// Output edge-map PNG (white edges on black).
+        #[arg(long, default_value = "out/edges.png")]
+        out: PathBuf,
+        /// Gaussian blur standard deviation.
+        #[arg(long, default_value_t = 1.4)]
+        sigma: f32,
+        /// Canny low gradient-magnitude threshold.
+        #[arg(long, default_value_t = 40.0)]
+        low: f32,
+        /// Canny high gradient-magnitude threshold.
+        #[arg(long, default_value_t = 90.0)]
+        high: f32,
+    },
 }
 
 fn main() -> Result<()> {
@@ -59,7 +77,38 @@ fn main() -> Result<()> {
             schem_version,
         } => emit_test_schem(&out, data_version, schem_version),
         Command::Segment { input, out } => segment_image(&input, &out),
+        Command::Edges {
+            input,
+            out,
+            sigma,
+            low,
+            high,
+        } => edges_image(&input, &out, sigma, low, high),
     }
+}
+
+fn edges_image(input: &Path, out: &Path, sigma: f32, low: f32, high: f32) -> Result<()> {
+    let decoded = image::open(input)
+        .with_context(|| format!("decoding {}", input.display()))?
+        .to_rgb8();
+    let (w, h) = decoded.dimensions();
+    let rgb = voxelens_core::RgbImage::from_rgb(w, h, decoded.into_raw());
+
+    let edges = voxelens_core::edges::canny(&rgb.to_grayscale(), sigma, low, high);
+    let mut buf = image::GrayImage::new(w, h);
+    for (i, &edge) in edges.data.iter().enumerate() {
+        buf.put_pixel(
+            i as u32 % w,
+            i as u32 / w,
+            image::Luma([if edge { 255 } else { 0 }]),
+        );
+    }
+
+    ensure_parent(out)?;
+    buf.save(out)
+        .with_context(|| format!("writing {}", out.display()))?;
+    println!("{} edge pixels -> {}", edges.count(), out.display());
+    Ok(())
 }
 
 fn ensure_parent(path: &Path) -> Result<()> {
