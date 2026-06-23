@@ -12,6 +12,7 @@
 
 pub mod camera;
 pub mod edges;
+pub mod faces;
 pub mod image;
 pub mod lines;
 pub mod schematic;
@@ -19,6 +20,7 @@ pub mod segmentation;
 
 pub use camera::{Camera, Ray};
 pub use edges::{canny, Edges};
+pub use faces::{assign_axes, Axis};
 pub use image::{GrayImage, RgbImage};
 pub use lines::{cluster_orientations, extract_segments, hough_lines, Line, LineSegment};
 pub use schematic::{SchematicOptions, VoxelModel};
