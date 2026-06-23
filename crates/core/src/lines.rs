@@ -114,7 +114,7 @@ pub fn hough_lines(edges: &Edges, threshold: u32, max_lines: usize) -> Vec<Line>
             }
         }
     }
-    peaks.sort_by(|a, b| b.0.cmp(&a.0));
+    peaks.sort_unstable_by_key(|p| std::cmp::Reverse(p.0));
     peaks.truncate(max_lines);
     peaks
         .into_iter()
