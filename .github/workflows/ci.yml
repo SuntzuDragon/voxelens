@@ -22,3 +22,17 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Test
         run: cargo test --all
+
+  # Guards the promise that voxelens-core stays WebAssembly-compatible (no
+  # native-only deps), so a bad dependency is caught now, not at the M7 browser
+  # milestone.
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Build core for wasm32
+        run: cargo build -p voxelens-core --target wasm32-unknown-unknown
