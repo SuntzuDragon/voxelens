@@ -109,6 +109,27 @@ impl Camera {
         self.fov_vertical_deg
     }
 
+    pub fn width(&self) -> f64 {
+        self.width
+    }
+
+    pub fn height(&self) -> f64 {
+        self.height
+    }
+
+    /// Image point where lines parallel to world `axis` converge (the vanishing
+    /// point), or `None` if it is at infinity (axis perpendicular to the view).
+    /// The result is the same for `axis` and `-axis` (it's a line direction).
+    pub fn vanishing_point(&self, axis: Vector3<f64>) -> Option<(f64, f64)> {
+        let fd = self.forward.dot(&axis);
+        if fd.abs() < 1e-9 {
+            return None;
+        }
+        let u = self.width / 2.0 + self.fy * (self.right.dot(&axis) / fd);
+        let v = self.height / 2.0 - self.fy * (self.up.dot(&axis) / fd);
+        Some((u, v))
+    }
+
     /// Horizontal field of view in degrees, derived from the vertical FOV and
     /// aspect ratio: `2·atan(tan(vfov/2) · W/H)`.
     pub fn horizontal_fov_deg(&self) -> f64 {

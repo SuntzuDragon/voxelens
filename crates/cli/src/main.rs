@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
+use nalgebra::Point3;
+use voxelens_core::faces::Axis;
 use voxelens_core::schematic::{to_schem, SchematicOptions, SchematicVersion};
 use voxelens_core::segmentation::{segment, Class};
 use voxelens_core::VoxelModel;
@@ -94,6 +96,42 @@ enum Command {
         #[arg(long, default_value_t = 25.0)]
         min_len: f32,
     },
+
+    /// Color segments by their world axis via camera vanishing points (M4).
+    /// Camera pose defaults to the wool-tree fixture.
+    Axes {
+        input: PathBuf,
+        #[arg(long, default_value = "out/axes.png")]
+        out: PathBuf,
+        #[arg(long, default_value_t = 1.4)]
+        sigma: f32,
+        #[arg(long, default_value_t = 40.0)]
+        low: f32,
+        #[arg(long, default_value_t = 90.0)]
+        high: f32,
+        #[arg(long, default_value_t = 50)]
+        threshold: u32,
+        #[arg(long, default_value_t = 80)]
+        max_lines: usize,
+        #[arg(long, default_value_t = 6)]
+        max_gap: i32,
+        #[arg(long, default_value_t = 25.0)]
+        min_len: f32,
+        #[arg(long, default_value_t = 70.0)]
+        fov: f64,
+        #[arg(long, default_value_t = 129.0)]
+        yaw: f64,
+        #[arg(long, default_value_t = 14.0)]
+        pitch: f64,
+        #[arg(long, default_value_t = 6.0)]
+        eye_x: f64,
+        #[arg(long, default_value_t = -54.38)]
+        eye_y: f64,
+        #[arg(long, default_value_t = 3.0)]
+        eye_z: f64,
+        #[arg(long, default_value_t = 12.0)]
+        max_err: f32,
+    },
 }
 
 fn main() -> Result<()> {
@@ -132,7 +170,107 @@ fn main() -> Result<()> {
             max_gap,
             min_len,
         }),
+        Command::Axes {
+            input,
+            out,
+            sigma,
+            low,
+            high,
+            threshold,
+            max_lines,
+            max_gap,
+            min_len,
+            fov,
+            yaw,
+            pitch,
+            eye_x,
+            eye_y,
+            eye_z,
+            max_err,
+        } => axes_image(AxesArgs {
+            input: &input,
+            out: &out,
+            sigma,
+            low,
+            high,
+            threshold,
+            max_lines,
+            max_gap,
+            min_len,
+            fov,
+            yaw,
+            pitch,
+            eye: [eye_x, eye_y, eye_z],
+            max_err,
+        }),
     }
+}
+
+struct AxesArgs<'a> {
+    input: &'a Path,
+    out: &'a Path,
+    sigma: f32,
+    low: f32,
+    high: f32,
+    threshold: u32,
+    max_lines: usize,
+    max_gap: i32,
+    min_len: f32,
+    fov: f64,
+    yaw: f64,
+    pitch: f64,
+    eye: [f64; 3],
+    max_err: f32,
+}
+
+fn axes_image(args: AxesArgs) -> Result<()> {
+    let decoded = image::open(args.input)
+        .with_context(|| format!("decoding {}", args.input.display()))?
+        .to_rgb8();
+    let (w, h) = decoded.dimensions();
+    let rgb = voxelens_core::RgbImage::from_rgb(w, h, decoded.as_raw().clone());
+
+    let edges = voxelens_core::edges::canny(&rgb.to_grayscale(), args.sigma, args.low, args.high);
+    let lines = voxelens_core::lines::hough_lines(&edges, args.threshold, args.max_lines);
+    let segments =
+        voxelens_core::lines::extract_segments(&edges, &lines, args.max_gap, args.min_len);
+
+    let cam = voxelens_core::Camera::new(
+        args.fov,
+        w,
+        h,
+        Point3::new(args.eye[0], args.eye[1], args.eye[2]),
+        args.yaw,
+        args.pitch,
+    );
+    let labels = voxelens_core::faces::assign_axes(&segments, &cam, args.max_err);
+
+    let color = |axis: Option<Axis>| match axis {
+        Some(Axis::X) => [255, 80, 80],
+        Some(Axis::Y) => [80, 220, 90],
+        Some(Axis::Z) => [90, 140, 255],
+        None => [150, 150, 150],
+    };
+    let mut buf = decoded;
+    let (mut nx, mut ny, mut nz, mut nn) = (0, 0, 0, 0);
+    for (seg, &label) in segments.iter().zip(&labels) {
+        draw_line(&mut buf, seg.a, seg.b, color(label));
+        match label {
+            Some(Axis::X) => nx += 1,
+            Some(Axis::Y) => ny += 1,
+            Some(Axis::Z) => nz += 1,
+            None => nn += 1,
+        }
+    }
+
+    ensure_parent(args.out)?;
+    buf.save(args.out)
+        .with_context(|| format!("writing {}", args.out.display()))?;
+    println!(
+        "segments: X={nx} Y={ny} Z={nz} none={nn} -> {}",
+        args.out.display()
+    );
+    Ok(())
 }
 
 struct LinesArgs<'a> {
