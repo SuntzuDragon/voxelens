@@ -9,4 +9,5 @@ description = "Pure, WASM-compatible engine for reconstructing Minecraft schemat
 [dependencies]
 fastnbt = "2.6"
 flate2 = "1"
+nalgebra = "0.33"
 serde = { version = "1", features = ["derive"] }

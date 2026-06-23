@@ -10,6 +10,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod camera;
 pub mod schematic;
 
+pub use camera::{Camera, Ray};
 pub use schematic::{SchematicOptions, VoxelModel};
