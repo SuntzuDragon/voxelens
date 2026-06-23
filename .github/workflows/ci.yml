@@ -60,3 +60,20 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Coverage
         run: cargo llvm-cov --all --summary-only | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Build the browser app (wasm-pack + Vite) so it can't silently rot.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@wasm-pack
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build web app
+        working-directory: web
+        run: npm ci && npm run build
