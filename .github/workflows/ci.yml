@@ -36,3 +36,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build core for wasm32
         run: cargo build -p voxelens-core --target wasm32-unknown-unknown
+
+  # Security advisories (RUSTSEC) for our dependency tree.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-audit
+      - run: cargo audit
+
+  # Test coverage summary (printed to the run summary; no external service).
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Coverage
+        run: cargo llvm-cov --all --summary-only | tee -a "$GITHUB_STEP_SUMMARY"
