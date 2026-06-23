@@ -117,10 +117,18 @@ WASM. CLI and web app are thin I/O shells.
   `schematic-3.md` spec **and** a real v3 file: `Blocks{Palette,Data}`, not
   `BlockPalette`.)_
 - **M2 — Camera / projection** (`nalgebra`). `world_to_pixel`, `pixel_to_ray`,
-  ground/grid-plane intersection; constants verified against decompiled jar;
-  tests assert exact pixels from the fixture pose.
-- **M3 — Image load + segmentation.** Decode PNG; segment trunk/wool/ground/sky
-  (greens on luma); bbox tests on the fixture; stage-dump PNG.
+  horizontal-plane intersection. _(done — constants verified against the
+  decompiled **Mojang-mapped** jar: `GameRenderer.getProjectionMatrix`
+  (FOV-vertical, near 0.05, aspect W/H) and `Entity.calculateViewVector`. 7
+  tests incl. an empirical projection check. NOTE: the fixture's recorded pose
+  (yaw 129 / pitch 14) drifted ~2° from the true capture pose — a data issue,
+  not the math; accurate pose belongs to M6 refinement or an F3 re-capture.)_
+- **M3 — Image load + segmentation.** `RgbImage` + HSV classifier into
+  sky/ground/wood/canopy; per-class bboxes; CLI `segment` stage-dump. _(done —
+  grass vs green-wool separated on **value + saturation** (both green); trunk
+  bbox matches the measured pixels exactly; fixture integration test. Limitation:
+  green-on-green leaves some horizon noise / canopy speckle for later
+  connected-component cleanup.)_
 - **M4 — Block-face detection.** Canny -> Hough -> cluster into 3 axis families
   via expected edge slopes; assemble quads; label top/left/right via VP +
   shading-brightness; synthetic-cube + real-fixture tests; stage-dump overlay.

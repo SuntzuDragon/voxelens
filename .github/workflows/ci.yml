@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # Run push-CI only on main (post-merge); PRs are validated via pull_request.
+  # This avoids running the whole suite twice for the same commit on a PR branch.
   push:
+    branches: [main]
   pull_request:
 
 env:
