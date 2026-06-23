@@ -67,6 +67,33 @@ enum Command {
         #[arg(long, default_value_t = 90.0)]
         high: f32,
     },
+
+    /// Detect straight lines (Hough), colored by orientation cluster (M4).
+    Lines {
+        /// Input screenshot (PNG).
+        input: PathBuf,
+        /// Output PNG with detected lines drawn on the photo.
+        #[arg(long, default_value = "out/lines.png")]
+        out: PathBuf,
+        #[arg(long, default_value_t = 1.4)]
+        sigma: f32,
+        #[arg(long, default_value_t = 40.0)]
+        low: f32,
+        #[arg(long, default_value_t = 90.0)]
+        high: f32,
+        /// Minimum Hough votes for a line.
+        #[arg(long, default_value_t = 60)]
+        threshold: u32,
+        /// Maximum number of lines to keep.
+        #[arg(long, default_value_t = 60)]
+        max_lines: usize,
+        /// Max gap (px) bridged within a segment.
+        #[arg(long, default_value_t = 6)]
+        max_gap: i32,
+        /// Minimum segment length (px).
+        #[arg(long, default_value_t = 25.0)]
+        min_len: f32,
+    },
 }
 
 fn main() -> Result<()> {
@@ -84,7 +111,113 @@ fn main() -> Result<()> {
             low,
             high,
         } => edges_image(&input, &out, sigma, low, high),
+        Command::Lines {
+            input,
+            out,
+            sigma,
+            low,
+            high,
+            threshold,
+            max_lines,
+            max_gap,
+            min_len,
+        } => lines_image(LinesArgs {
+            input: &input,
+            out: &out,
+            sigma,
+            low,
+            high,
+            threshold,
+            max_lines,
+            max_gap,
+            min_len,
+        }),
     }
+}
+
+struct LinesArgs<'a> {
+    input: &'a Path,
+    out: &'a Path,
+    sigma: f32,
+    low: f32,
+    high: f32,
+    threshold: u32,
+    max_lines: usize,
+    max_gap: i32,
+    min_len: f32,
+}
+
+/// Draw a thick line segment (Bresenham) onto an RGB buffer.
+fn draw_line(buf: &mut image::RgbImage, a: (f32, f32), b: (f32, f32), color: [u8; 3]) {
+    let (w, h) = (buf.width() as i32, buf.height() as i32);
+    let (mut x0, mut y0) = (a.0.round() as i32, a.1.round() as i32);
+    let (x1, y1) = (b.0.round() as i32, b.1.round() as i32);
+    let dx = (x1 - x0).abs();
+    let dy = -(y1 - y0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    loop {
+        for ty in -1..=1 {
+            for tx in -1..=1 {
+                let (px, py) = (x0 + tx, y0 + ty);
+                if px >= 0 && px < w && py >= 0 && py < h {
+                    buf.put_pixel(px as u32, py as u32, image::Rgb(color));
+                }
+            }
+        }
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+fn lines_image(args: LinesArgs) -> Result<()> {
+    let decoded = image::open(args.input)
+        .with_context(|| format!("decoding {}", args.input.display()))?
+        .to_rgb8();
+    let (w, h) = decoded.dimensions();
+    let rgb = voxelens_core::RgbImage::from_rgb(w, h, decoded.as_raw().clone());
+
+    let edges = voxelens_core::edges::canny(&rgb.to_grayscale(), args.sigma, args.low, args.high);
+    let lines = voxelens_core::lines::hough_lines(&edges, args.threshold, args.max_lines);
+    let segments =
+        voxelens_core::lines::extract_segments(&edges, &lines, args.max_gap, args.min_len);
+
+    let oris: Vec<f32> = segments.iter().map(|s| s.orientation()).collect();
+    let weights: Vec<f32> = segments.iter().map(|s| s.length()).collect();
+    let (assign, _) = voxelens_core::lines::cluster_orientations(&oris, &weights, 3, 12);
+
+    let colors = [[255, 60, 60], [60, 220, 90], [90, 140, 255]];
+    let mut buf = decoded;
+    for (i, seg) in segments.iter().enumerate() {
+        draw_line(
+            &mut buf,
+            seg.a,
+            seg.b,
+            colors[assign.get(i).copied().unwrap_or(0) % 3],
+        );
+    }
+
+    ensure_parent(args.out)?;
+    buf.save(args.out)
+        .with_context(|| format!("writing {}", args.out.display()))?;
+    println!(
+        "{} lines, {} segments -> {}",
+        lines.len(),
+        segments.len(),
+        args.out.display()
+    );
+    Ok(())
 }
 
 fn edges_image(input: &Path, out: &Path, sigma: f32, low: f32, high: f32) -> Result<()> {
