@@ -15,6 +15,7 @@ pub mod edges;
 pub mod faces;
 pub mod image;
 pub mod lines;
+pub mod reconstruct;
 pub mod schematic;
 pub mod segmentation;
 
@@ -23,5 +24,6 @@ pub use edges::{canny, Edges};
 pub use faces::{assign_axes, Axis};
 pub use image::{GrayImage, RgbImage};
 pub use lines::{cluster_orientations, extract_segments, hough_lines, Line, LineSegment};
+pub use reconstruct::{reconstruct_trunk, Reconstruction};
 pub use schematic::{SchematicOptions, VoxelModel};
 pub use segmentation::{segment, Class, Segmentation};

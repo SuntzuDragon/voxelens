@@ -16,3 +16,4 @@ serde = { version = "1", features = ["derive"] }
 # Only used by tests to decode fixture PNGs into RgbImage; not part of the
 # library's runtime deps, so the core stays I/O-free and wasm-clean.
 image = { version = "0.25", default-features = false, features = ["png"] }
+nalgebra = "0.33"
