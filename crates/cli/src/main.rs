@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use voxelens_core::schematic::{to_schem, SchematicOptions, SchematicVersion};
+use voxelens_core::segmentation::{segment, Class};
 use voxelens_core::VoxelModel;
 
 #[derive(Parser)]
@@ -38,6 +39,16 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         schem_version: u8,
     },
+
+    /// Segment a screenshot into sky/ground/wood/canopy and write a colorized
+    /// label map (M3 stage dump).
+    Segment {
+        /// Input screenshot (PNG).
+        input: PathBuf,
+        /// Output colorized segmentation PNG.
+        #[arg(long, default_value = "out/segmentation.png")]
+        out: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -47,7 +58,59 @@ fn main() -> Result<()> {
             data_version,
             schem_version,
         } => emit_test_schem(&out, data_version, schem_version),
+        Command::Segment { input, out } => segment_image(&input, &out),
     }
+}
+
+fn ensure_parent(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating directory {}", parent.display()))?;
+        }
+    }
+    Ok(())
+}
+
+fn class_color(class: Class) -> [u8; 3] {
+    match class {
+        Class::Sky => [120, 170, 255],
+        Class::Ground => [70, 150, 60],
+        Class::Wood => [130, 80, 40],
+        Class::Canopy => [30, 90, 25],
+        Class::Other => [255, 0, 255],
+    }
+}
+
+fn segment_image(input: &Path, out: &Path) -> Result<()> {
+    let decoded = image::open(input)
+        .with_context(|| format!("decoding {}", input.display()))?
+        .to_rgb8();
+    let (w, h) = decoded.dimensions();
+    let rgb = voxelens_core::RgbImage::from_rgb(w, h, decoded.into_raw());
+
+    let seg = segment(&rgb);
+    let mut buf = image::RgbImage::new(w, h);
+    for (i, &class) in seg.labels.iter().enumerate() {
+        buf.put_pixel(i as u32 % w, i as u32 / w, image::Rgb(class_color(class)));
+    }
+
+    ensure_parent(out)?;
+    buf.save(out)
+        .with_context(|| format!("writing {}", out.display()))?;
+
+    let total = (w * h) as f64;
+    for class in [
+        Class::Sky,
+        Class::Ground,
+        Class::Wood,
+        Class::Canopy,
+        Class::Other,
+    ] {
+        println!("{class:?}: {:.1}%", 100.0 * seg.count(class) as f64 / total);
+    }
+    println!("wrote {}", out.display());
+    Ok(())
 }
 
 fn emit_test_schem(out: &Path, data_version: i32, schem_version: u8) -> Result<()> {
@@ -68,12 +131,7 @@ fn emit_test_schem(out: &Path, data_version: i32, schem_version: u8) -> Result<(
     };
     let bytes = to_schem(version, &model, &opts)?;
 
-    if let Some(parent) = out.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("creating directory {}", parent.display()))?;
-        }
-    }
+    ensure_parent(out)?;
     std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
     println!(
         "wrote {} bytes (v{}) -> {}",

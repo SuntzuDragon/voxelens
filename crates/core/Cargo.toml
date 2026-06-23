@@ -11,3 +11,8 @@ fastnbt = "2.6"
 flate2 = "1"
 nalgebra = "0.33"
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Only used by tests to decode fixture PNGs into RgbImage; not part of the
+# library's runtime deps, so the core stays I/O-free and wasm-clean.
+image = { version = "0.25", default-features = false, features = ["png"] }
