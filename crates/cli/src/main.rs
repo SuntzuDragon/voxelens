@@ -11,6 +11,7 @@ use nalgebra::Point3;
 use voxelens_core::faces::Axis;
 use voxelens_core::schematic::{to_schem, SchematicOptions, SchematicVersion};
 use voxelens_core::segmentation::{segment, Class};
+use voxelens_core::texture::{classify, Tile};
 use voxelens_core::VoxelModel;
 
 #[derive(Parser)]
@@ -161,6 +162,22 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         schem_version: u8,
     },
+
+    /// Classify a (pre-cropped) block face against a folder of `NAME.png`
+    /// textures via the color+structure classifier (M5).
+    Classify {
+        /// Cropped face image (PNG/JPEG).
+        face: PathBuf,
+        /// Directory of reference textures named `<block>.png`.
+        #[arg(long)]
+        atlas: PathBuf,
+        /// Tile size both face and textures are resampled to.
+        #[arg(long, default_value_t = 16)]
+        size: u32,
+        /// Reject the match if confidence is below this.
+        #[arg(long, default_value_t = 0.5)]
+        threshold: f32,
+    },
 }
 
 fn main() -> Result<()> {
@@ -171,6 +188,12 @@ fn main() -> Result<()> {
             schem_version,
         } => emit_test_schem(&out, data_version, schem_version),
         Command::Segment { input, out } => segment_image(&input, &out),
+        Command::Classify {
+            face,
+            atlas,
+            size,
+            threshold,
+        } => classify_image(&face, &atlas, size, threshold),
         Command::Edges {
             input,
             out,
@@ -571,5 +594,44 @@ fn emit_test_schem(out: &Path, data_version: i32, schem_version: u8) -> Result<(
         schem_version,
         out.display()
     );
+    Ok(())
+}
+
+fn load_tile(path: &Path, size: u32) -> Result<Tile> {
+    let img = image::open(path)
+        .with_context(|| format!("decoding {}", path.display()))?
+        .to_rgb8();
+    let resized = image::imageops::resize(&img, size, size, image::imageops::FilterType::Triangle);
+    Ok(Tile::from_rgb(size as usize, resized.as_raw()))
+}
+
+fn classify_image(face: &Path, atlas_dir: &Path, size: u32, threshold: f32) -> Result<()> {
+    let mut atlas = Vec::new();
+    for entry in std::fs::read_dir(atlas_dir)
+        .with_context(|| format!("reading atlas dir {}", atlas_dir.display()))?
+    {
+        let path = entry?.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("png") {
+            let name = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            atlas.push((name, load_tile(&path, size)?));
+        }
+    }
+    if atlas.is_empty() {
+        bail!("no .png textures found in {}", atlas_dir.display());
+    }
+    atlas.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let face_tile = load_tile(face, size)?;
+    match classify(&face_tile, &atlas, threshold) {
+        Some(m) => println!(
+            "{}  (confidence {:.2}, rotation {})",
+            m.name, m.score, m.rotation
+        ),
+        None => println!("unknown — best match below threshold {threshold}"),
+    }
     Ok(())
 }
