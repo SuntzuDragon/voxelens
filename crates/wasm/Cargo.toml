@@ -12,4 +12,4 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 voxelens-core = { workspace = true }
 wasm-bindgen = "0.2"
-nalgebra = "0.33"
+nalgebra = "0.35"
